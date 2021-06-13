@@ -5,6 +5,7 @@ import zipfile
 import io
 from os.path import basename
 
+# Download Youtube-Dl Option
 ydl_opts = {
     'format': 'bestaudio/best',
     'outtmpl': '/var/www/musicdownloader/musicdownloader/downloads/%(extractor)s-%(id)s-%(title)s.%(ext)s',
@@ -25,17 +26,31 @@ ydl_opts = {
 }]
 } 
 
+# Playlist extract Youtube-Dl Option
 ydl_opts_playlist = {'outtmpl': '%(id)s%(ext)s', 'quiet':True,}
 
+# Search by name on Youtube
+def search_by_name(song):
+    with youtube_dl.YoutubeDL(ydl_opts) as ydl: 
+        infosearched = ydl.extract_info("ytsearch:"+song, False)
+        return infosearched['entries'][0]['webpage_url']
+
+# Download given video url
 def dwl_vid(zxt): 
     with youtube_dl.YoutubeDL(ydl_opts) as ydl: 
         download = ydl.extract_info(zxt, True)
         filename = ydl.prepare_filename(download)
         return filename
 
+# Corrects the extension of the audio file
 def correctExt(file):
-    return file.replace(".webm",".mp3")
+    if '.webm' in file:
+        return file.replace(".webm",".mp3")
+    if '.m4a' in file:
+        return file.replace(".m4a",".mp3")
+    return file
 
+# Get links of the videos of the given playlist
 def get_playlist_links(playlist_url):
     with youtube_dl.YoutubeDL(ydl_opts_playlist) as ydl: 
         result = ydl.extract_info(playlist_url, download=False)
@@ -48,6 +63,7 @@ def get_playlist_links(playlist_url):
                 files.append(actualfile)
             return files
 
+# Creates a zip with de given files
 def request_zip(files):
     data = io.BytesIO()
     with zipfile.ZipFile(data, mode='w') as z:
@@ -65,7 +81,10 @@ def musicdownloader():
         if "playlist" in zxt:             
             files =  get_playlist_links(zxt)                             
             return send_file(request_zip(files), mimetype='application/zip', as_attachment=True, attachment_filename='data.zip')
-        name=dwl_vid(zxt)
+        if "https://www.youtube.com/" in zxt or 'https://youtu.be/' in zxt:
+            name = dwl_vid(zxt)
+        else:
+            name=dwl_vid(search_by_name(zxt))
         return send_file(correctExt(name), as_attachment=True)
     return render_template('index.html')
         
