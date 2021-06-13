@@ -1,9 +1,7 @@
 from flask import Flask, render_template, request, send_file, send_from_directory, safe_join, abort
-import youtube_dl
-import ffmpeg
-import zipfile
-import io
+import youtube_dl,spotipy,ffmpeg,zipfile,io
 from os.path import basename
+from spotipy.oauth2 import SpotifyOAuth
 
 # Download Youtube-Dl Option
 ydl_opts = {
@@ -28,6 +26,39 @@ ydl_opts = {
 
 # Playlist extract Youtube-Dl Option
 ydl_opts_playlist = {'outtmpl': '%(id)s%(ext)s', 'quiet':True,}
+
+# Get spotify client
+def getSpotifyCredentials():
+    # You can set this variables as enviroment variables so you don't need to put them on the code
+    # return spotipy.Spotify(auth_manager=spotipy.SpotifyClientCredentials())
+    return spotipy.Spotify(auth_manager=spotipy.SpotifyClientCredentials(client_id='SPOTIFY CLIENT TOKEN',client_secret='SPOTIFY CLIENT SECRET TOKEN'))
+
+# Get spotify song info
+def getSpotifyData(song):
+    readedSong = ''
+    sp = getSpotifyCredentials()
+    if 'playlist' in song:
+        songCount = 0
+        songIterationCount = 100
+        files = []
+        while songIterationCount == 100:
+            songIterationCount = 0
+            results = sp.playlist_tracks(song, limit=None,offset=songCount)
+            for items in results['items']:
+                songCount+=1
+                songIterationCount+=1
+                entry = items['track']['name']
+                for artist in items['track']['artists']:
+                    entry += ' '+artist['name']
+                actualfile=correctExt(dwl_vid(search_by_name(entry)))
+                files.append(actualfile)
+        return files, 1
+    elif 'track' in song:
+        data = sp.track(song)
+        readedSong = data['name']
+        for artist in data['artists']:
+            readedSong += ' '+artist['name']
+        return readedSong, 0    
 
 # Search by name on Youtube
 def search_by_name(song):
@@ -78,10 +109,17 @@ app = Flask(__name__)
 def musicdownloader():
     if request.method == "POST":
         zxt = request.form["urlintro"]
-        if "playlist" in zxt:             
+        # UNCOMMENT if you are going to use Spotify API
+        # if 'spotify.com' in zxt:
+        #     song,type = getSpotifyData(zxt)
+        #     if type == 0:
+        #         name=dwl_vid(search_by_name(song))
+        #     elif type == 1:                          
+        #         return send_file(request_zip(song), mimetype='application/zip', as_attachment=True, attachment_filename='data.zip')
+        if "playlist" in zxt and ('https://www.youtube.com/' in zxt or 'https://youtube.com/' in zxt):             
             files =  get_playlist_links(zxt)                             
             return send_file(request_zip(files), mimetype='application/zip', as_attachment=True, attachment_filename='data.zip')
-        if "https://www.youtube.com/" in zxt or 'https://youtu.be/' in zxt:
+        elif "https://www.youtube.com/" in zxt or 'https://youtu.be/' in zxt:
             name = dwl_vid(zxt)
         else:
             name=dwl_vid(search_by_name(zxt))
